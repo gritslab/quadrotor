@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+
+"""
+@brief Classes and functions for quadrotor commander
+
+@author Rowland O'Flaherty
+@date 10/19/2014
+@version: 0.1
+@copyright: Copyright (C) 2014, see the LICENSE file
+"""
+
+import rospy
+from quadrotor.srv import *
+
+def run():
+    srv_quad_cmd = rospy.ServiceProxy('quad_cmd', quad_cmd)
+
+    cmd_order = ['m', 's', 'r', 'e', 'q']
+    cmd_list = {'m': 'Menu',
+                's': 'Start/Stop',
+                'r': 'Reset',
+                'e': 'Echo On/Off',
+                'q': 'Quit'}
+
+    print "*----------------------*"
+    print "| Quad Command Program |"
+    print "*----------------------*"
+
+    print "Waiting for simulator..."
+    rospy.wait_for_service('quad_cmd')
+    print "Done"
+    print ""
+
+    print_menu(cmd_list, cmd_order)
+
+    while not rospy.is_shutdown():
+        (cmd, quit_flag) = get_input(cmd_list, cmd_order)
+        rospy.wait_for_service('quad_cmd')
+        msg = srv_quad_cmd(cmd)
+        print_reply(msg)
+        if quit_flag:
+            break
+
+def get_input(cmd_list, cmd_order):
+    input_str = "Enter command: "
+    cmd = raw_input(input_str)
+    print ""
+    while cmd.lower() == 'm' or cmd.lower() not in cmd_list.keys():
+        if cmd.lower() == 'm':
+            print_cmd(cmd, cmd_list)
+        if cmd.lower() not in cmd_list.keys():
+            print "Invalid command: " + cmd
+            print ""
+        print_menu(cmd_list, cmd_order)
+        cmd = raw_input(input_str)
+        print ""
+    print_cmd(cmd, cmd_list)
+    if cmd == 'q':
+        quit_flag = True
+    else:
+        quit_flag = False
+    return (cmd, quit_flag)
+
+def print_menu(cmd_list, cmd_order):
+    print " *** Command Menu  ***"
+    print ""
+    for key in cmd_order:
+        str_len = len(cmd_list[key])
+        if str_len < 8:
+            tab_str = "\t\t"
+        else:
+            tab_str = "\t"
+        print cmd_list[key] + tab_str + "\'" + key + "\'"
+    print ""
+
+def print_cmd(cmd, cmd_list):
+    print " *** Command ***"
+    print cmd_list[cmd]
+    print ""
+
+def print_reply(msg):
+    print " *** Reply ***"
+    print msg.reply
+    print ""
+
+if __name__ == '__main__':
+    try:
+        # Initialize and run simulator object
+        run()
+
+    except rospy.ROSInterruptException: pass

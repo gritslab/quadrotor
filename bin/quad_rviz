@@ -1,0 +1,99 @@
+#!/usr/bin/env python
+
+"""
+@brief Classes and functions for quadrotor RViz visulization
+
+@author Rowland O'Flaherty
+@date 10/13/2014
+@version: 0.1
+@copyright: Copyright (C) 2014, see the LICENSE file
+"""
+
+import numpy as np
+from numpy import pi as PI
+from numpy import sqrt as sqrt
+
+import rospy
+
+from visualization_msgs.msg import Marker
+
+from quadrotor.sim_params import SAMPLE_TIME
+
+class QuadRviz(object):
+    """
+    Quadrotor RViz class
+    """
+
+    # Properties
+
+    # Constructor
+    def __init__(self):
+        rospy.init_node('quad_rviz', anonymous=True)
+
+        self._rospy_rate = rospy.Rate(1/SAMPLE_TIME)
+
+        self.setup_publishers()
+        self.setup_messages()
+
+    # Property getters and setters
+
+    # Methods
+    def run(self):
+        while not rospy.is_shutdown():
+            self.publish()
+            self._rospy_rate.sleep()
+
+    # Messages
+    def setup_messages(self):
+        self.setup_msgs_quad_marker()
+
+    def setup_msgs_quad_marker(self):
+        self.msg_quad_marker = Marker()
+
+        self.msg_quad_marker.header.frame_id = "QUAD"
+        self.msg_quad_marker.ns = "LOCAL"
+        self.msg_quad_marker.id = 0
+        self.msg_quad_marker.type = Marker.MESH_RESOURCE
+        self.msg_quad_marker.mesh_resource = "package://quadrotor/meshes/DJI.stl"
+        self.msg_quad_marker.action = Marker.ADD
+        self.msg_quad_marker.lifetime = rospy.Duration()
+
+        self.msg_quad_marker.scale.x = 0.001
+        self.msg_quad_marker.scale.y = 0.001
+        self.msg_quad_marker.scale.z = 0.001
+
+        self.msg_quad_marker.color.r = 210./256.
+        self.msg_quad_marker.color.g = 210./256.
+        self.msg_quad_marker.color.b = 210./256.
+        self.msg_quad_marker.color.a = 1.0
+
+        self.msg_quad_marker.pose.position.x = 0
+        self.msg_quad_marker.pose.position.y = 0
+        self.msg_quad_marker.pose.position.z = 0
+
+        self.msg_quad_marker.pose.orientation.w = 1
+        self.msg_quad_marker.pose.orientation.x = 0
+        self.msg_quad_marker.pose.orientation.y = 0
+        self.msg_quad_marker.pose.orientation.z = 0
+
+    # Publishers
+    def setup_publishers(self):
+        self.pub_quad_marker = rospy.Publisher('visualization_marker',
+                                               Marker,
+                                               queue_size=1)
+
+    def publish(self):
+        self.msg_quad_marker.header.stamp = rospy.Time.now()
+        self.pub_quad_marker.publish(self.msg_quad_marker)
+
+    # Subscribers
+
+
+if __name__ == '__main__':
+    try:
+        # Initialize and run simulator object
+        quad_rviz = QuadRviz()
+        quad_rviz.run()
+
+    except rospy.ROSInterruptException: pass
+

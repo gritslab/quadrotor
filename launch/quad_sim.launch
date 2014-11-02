@@ -1,0 +1,8 @@
+<launch>
+    <node name="quad_cmd" pkg="quadrotor" type="quad_cmd" output="screen" />
+    <node name="quad_sim" pkg="quadrotor" type="quad_sim" required="true" output="screen"/>
+    <node name="quad_rviz" pkg="quadrotor" type="quad_rviz" required="true" >
+        <param name="quad_id" type="string" value="1" />
+    </node>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find quadrotor)/rviz/quad_sim.rviz" required="true" />
+</launch>

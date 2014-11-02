@@ -1,0 +1,235 @@
+#!/usr/bin/env python
+
+"""
+@brief Classes and functions for quadrotor simulator
+
+@author Rowland O'Flaherty
+@date 10/13/2014
+@version: 0.1
+@copyright: Copyright (C) 2014, see the LICENSE file
+"""
+
+import numpy as np
+from numpy import pi as PI
+from numpy import sin as sin
+from numpy import cos as cos
+
+import rospy
+from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TwistStamped
+from tf.msg import tfMessage
+from quadrotor.srv import *
+
+import robotics.frames as frames
+import quadrotor.quad as quad
+
+from quadrotor.sim_params import *
+
+class QuadSim():
+    """
+    Quadrotor simulator class
+    """
+
+    # Properties
+    quad = None
+    _rospy_rate = None
+    _quad_initial_state = np.zeros((12, 1))
+    _run_flag = True
+    _simulate_flag = False
+    _echo_flag = False
+
+    # Constructor
+    def __init__(self, sample_time=SAMPLE_TIME, local_ref=frames.LOCAL,
+                 params=PUFFIN_PARAMS):
+
+        self.quad = quad.Quad(params=params, time=0,
+                              position=INIT_POSITION,
+                              attitude=INIT_ATTITUDE,
+                              linear_vel=INIT_LINEAR_VEL,
+                              attitude_vel=INIT_ATTITUDE_VEL,
+                              pwm=None,
+                              reference=local_ref)
+
+
+        rospy.init_node('quad_sim', anonymous=True)
+
+        self._rospy_rate = rospy.Rate(1/SAMPLE_TIME)
+
+        self.setup_publishers()
+        self.setup_messages()
+        self.setup_services()
+        self.publish()
+
+    # Property getters and setters
+
+    # Methods
+    def run(self):
+
+        while (not rospy.is_shutdown()) and self._run_flag:
+
+            if self._simulate_flag and self.check():
+                self.update()
+
+            self.update_messages()
+
+            self.publish()
+
+            if self._echo_flag:
+                self.echo()
+
+            self._rospy_rate.sleep()
+
+    def check(self):
+        if self.quad.z < -0.05:
+            check_flag = False
+        else:
+            check_flag = True
+
+        return check_flag
+
+    def update(self):
+        ts = SAMPLE_TIME
+        self.quad.update(ts)
+
+    def reset(self):
+        self.pwm = self.quad.init_pwm[0]
+        self.quad.pwm = self.quad.init_pwm
+        self.quad.state = self.quad.init_state
+
+    def echo(self):
+        print self.quad
+
+    # Messages
+    def setup_messages(self):
+        self.setup_msg_tfs()
+        self.setup_msg_quad_twist()
+
+    def update_messages(self):
+        self.update_msg_tfs()
+
+    # ----
+
+    def setup_msg_tfs(self):
+        self.msg_tfs = tfMessage()
+
+        self.msg_tfs.transforms = 1*[None]
+
+        # Quad Transform
+        self.msg_tfs.transforms[0] = TransformStamped()
+
+        self.msg_tfs.transforms[0].header.seq = 0
+        self.msg_tfs.transforms[0].header.frame_id = "LOCAL"
+        self.msg_tfs.transforms[0].child_frame_id = "QUAD"
+
+        self.msg_tfs.transforms[0].transform.translation.x = .5
+        self.msg_tfs.transforms[0].transform.translation.y = 0
+        self.msg_tfs.transforms[0].transform.translation.z = 0
+
+        self.msg_tfs.transforms[0].transform.rotation.w = 1
+        self.msg_tfs.transforms[0].transform.rotation.x = 0
+        self.msg_tfs.transforms[0].transform.rotation.y = 0
+        self.msg_tfs.transforms[0].transform.rotation.z = 0
+
+        self.update_msg_tfs()
+
+    def update_msg_tfs(self):
+        self.msg_tfs.transforms[0].header.stamp = rospy.Time.now()
+
+        self.msg_tfs.transforms[0].transform.translation.x = self.quad.x
+        self.msg_tfs.transforms[0].transform.translation.y = self.quad.y
+        self.msg_tfs.transforms[0].transform.translation.z = self.quad.z
+
+        self.msg_tfs.transforms[0].transform.rotation.w = self.quad.r
+        self.msg_tfs.transforms[0].transform.rotation.x = self.quad.i
+        self.msg_tfs.transforms[0].transform.rotation.y = self.quad.j
+        self.msg_tfs.transforms[0].transform.rotation.z = self.quad.k
+
+
+    def setup_msg_quad_twist(self):
+        self.msg_quad_twist = TwistStamped()
+        self.update_msg_quad_twist()
+
+    def update_msg_quad_twist(self):
+        self.msg_quad_twist.header.stamp = rospy.Duration(self.quad.t)
+        self.msg_quad_twist.header.frame_id = self.quad.reference.name
+
+        self.msg_quad_twist.twist.linear.x = self.quad.linear_vel.x
+        self.msg_quad_twist.twist.linear.y = self.quad.linear_vel.y
+        self.msg_quad_twist.twist.linear.z = self.quad.linear_vel.z
+
+        self.msg_quad_twist.twist.angular.x = self.quad.angular_vel.x
+        self.msg_quad_twist.twist.angular.y = self.quad.angular_vel.y
+        self.msg_quad_twist.twist.angular.z = self.quad.angular_vel.z
+
+
+    # Publishers
+    def publish(self):
+        self.pub_tfs.publish(self.msg_tfs)
+        self.pub_quad_twist.publish(self.msg_quad_twist)
+
+    def setup_publishers(self):
+        self.pub_tfs = rospy.Publisher('tf',
+                                        tfMessage,
+                                        queue_size=1)
+
+
+        self.pub_quad_twist = rospy.Publisher(self.quad.name + '_quad_twist',
+                                              TwistStamped,
+                                              queue_size=1)
+
+
+    # Services
+    def setup_services(self):
+        self.serv_quad_cmd = rospy.Service('quad_cmd',
+                                           quad_cmd,
+                                           self.handle_quad_cmd)
+
+    def handle_quad_cmd(self, req):
+        reply = ""
+
+        if req.command == 's':
+            if self._simulate_flag:
+                reply = "Stopping simulation"
+                self._simulate_flag = False
+            else:
+                reply = "Starting simulation"
+                self._simulate_flag = True
+
+        elif req.command == 'r':
+            self.reset()
+
+            reply = ""
+            reply += "Resetting quad to:\n"
+            reply += "PWM: " + self.quad.val2str(self.quad.pwm) + "\n"
+            reply += "Position: " + self.quad.val2str(self.quad.xyz) + "\n"
+            reply += "Velocity: " + self.quad.val2str(self.quad.linear_vel.xyz) + "\n"
+
+            reply += "State:\n" + self.quad.val2str(self.quad.state) + "\n"
+            reply += "State Dot:\n" + self.quad.val2str(self.quad.state_dot) + "\n"
+
+        elif req.command == 'e':
+            if self._echo_flag:
+                reply = "Turning off echo"
+                self._echo_flag = False
+            else:
+                reply = "Turning on echo"
+                self._echo_flag = True
+
+        elif req.command == 'q':
+            reply = "Quitting"
+            self._run_flag = False
+
+        else:
+            reply = "Invalid command: " + req.command
+
+        print reply
+        return reply
+
+if __name__ == '__main__':
+    try:
+        # Initialize and run simulator object
+        quad_sim = QuadSim()
+        quad_sim.run()
+
+    except rospy.ROSInterruptException: pass
+
