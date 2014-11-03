@@ -126,6 +126,7 @@ class QuadParams(object):
             raise Exception("Invalid argument:\n" + str(value) + \
                     "\n" + "Valid types: 1x4 numpy.ndarray")
 
+
 class Quad(QuadParams, frames.AircraftState):
     """
     Quadrotor class
@@ -139,14 +140,25 @@ class Quad(QuadParams, frames.AircraftState):
     _input_desired = np.zeros((4,1))
     _state_err_cum_sum = np.zeros((12, 1))
 
+    _state_desired_size = np.array([[.2, .2, .2,
+                                     .07, .07, .07,
+                                     .2, .2, .2,
+                                     .1, .1, .1]])
+
     _max_lin_vel = 100
     _max_ang_vel = 20
+
+    _finite_state = []
+    _finite_state_set = [['LANDED',
+                          'HOLDING',
+                          'MOVING']]
+    _finite_state_dim = 1
 
     # Constructor
     def __init__(self, params=QuadParams(), time=0,
                  position=(0, 0, 0), attitude=(0, 0, 0),
                  linear_vel=(0, 0, 0), attitude_vel=(0, 0, 0),
-                 pwm=None, reference=None):
+                 pwm=None, reference=frames.LOCAL):
 
         QuadParams.__init__(self, name=params.name,
                             M=params.M,
@@ -162,7 +174,10 @@ class Quad(QuadParams, frames.AircraftState):
                                       attitude_vel=attitude_vel,
                                       reference=reference)
 
+
+        self._finite_state = ['LANDED']
         self._init_state = self.state
+        self.state_desired = self.state
 
         if pwm is None:
             self.pwm = (0, 0, 0, 0)
@@ -171,19 +186,23 @@ class Quad(QuadParams, frames.AircraftState):
             self.pwm = pwm
         self._init_pwm = self.pwm
 
-        # LQR attitude controller
+        # # LQR attitude controller
         # self.controller = self.lqr_attitude_control
 
         # LQR position and attitude controller
-        self.state_desired[0, 0] = 1
-        self.state_desired[1, 0] = 0
-        self.state_desired[2, 0] = 1
+        # self.state_desired[0, 0] = 1
+        # self.state_desired[1, 0] = 0
+        # self.state_desired[2, 0] = 1
+        # self.state_desired[5, 0] = PI
         self.controller = self.lqr_position_attitude_control
 
-        # CLF attitude controller
+        # # CLF attitude controller
         # self.controller = self.clf_attitude_control
+        # self.state_desired[3, 0] = 1
+        # self.state_desired[4, 0] = 0
+        # self.state_desired[5, 0] = 0
 
-        # Diffeomorphism full state controller
+        # # Diffeomorphism full state controller
         # self.controller = self.diffeomorphism_full_state_control
 
         # # Altitude controller
@@ -202,6 +221,21 @@ class Quad(QuadParams, frames.AircraftState):
 
 
     # Property getters and setters
+    @property
+    def finite_state_set(self):
+        return self._finite_state_set
+
+    @property
+    def finite_state(self):
+        return self._finite_state
+    @finite_state.setter
+    def finite_state(self, value):
+        for index in range(0, self._finite_state_dim):
+            if value[index] in self._finite_state_set[index]:
+                self._finite_state[index] = value[index]
+            else:
+                raise Exception("Invalid state: " + str(value[index]))
+
     @property
     def state_dim(self):
         return 12
@@ -233,6 +267,11 @@ class Quad(QuadParams, frames.AircraftState):
         else:
             raise Exception("Invalid argument: " + str(value) +  "\n" + \
                             "Valid types: 12x1 numpy.array")
+
+    @property
+    def at_state_desired(self):
+        return np.all(abs(self.state_err) < self._state_desired_size)
+
 
     @property
     def init_state(self):
@@ -463,6 +502,8 @@ class Quad(QuadParams, frames.AircraftState):
         self._state_err_cum_sum = self._state_err_cum_sum + \
                                   (self.state_desired - self.state) * ts
 
+        self.finite_state_update()
+
 
     def f(self, x, u):
         """
@@ -510,13 +551,6 @@ class Quad(QuadParams, frames.AircraftState):
         if pwm is None:
             if force is None:
                 force = self.force
-            # if force is None and force_local is None:
-            #     force_local = self.force_local
-            # elif force is not None and force_local is None:
-            #     force_local = self.rotation * rigid.Vector(*force, reference=self)
-            # elif force is not None and force_local is not None:
-            #     raise Exception("Invalid argument. Either use force or force_local, but not both.")
-
             if torque is None and torque_attitude is None:
                 torque_attitude = np.array([self.torque_attitude]).T
             elif torque is not None and torque_attitude is None:
@@ -572,9 +606,30 @@ class Quad(QuadParams, frames.AircraftState):
         # Temporary
         # x_dot[0:3] = np.zeros((3,1))
 
+        if self.finite_state[0] == 'LANDED':
+            x_dot[2, 0] = max(x_dot[2, 0], 0)
+
         return (x_dot, A, B, A_trans, B_trans, A_rot, B_rot)
 
     # Methods -- Controllers
+
+    def finite_state_update(self):
+        if self.finite_state[0] == 'LANDED':
+            if not self.at_state_desired:
+                self.finite_state[0] = 'MOVING'
+
+        elif self.finite_state[0] == 'MOVING':
+            if self.at_state_desired:
+                if self.state_desired[2, 0] <= 0:
+                    self.finite_state[0] = 'LANDED'
+                else:
+                    self.finite_state[0] = 'HOLDING'
+
+        elif self.finite_state[0] == 'HOLDING':
+            if not self.at_state_desired:
+                self.finite_state[0] = 'MOVING'
+
+
 
     def zero_control(self):
         return np.zeros((self.input_dim, 1))
@@ -627,11 +682,14 @@ class Quad(QuadParams, frames.AircraftState):
 
         xi = q[0:3]
         xi_dot = q[6:9]
-        psi = q[5,0]
+        phi = q[3,0]
+        theta = q[4,0]
+        psi = mmath.wrap_to_2pi(q[5,0])
+        eta = np.array([[phi, theta, psi]]).T
         chi = np.vstack([xi, xi_dot])
 
         xi_bar = self.state_desired[0:3]
-        psi_bar = self.state_desired[5,0]
+        psi_bar = mmath.wrap_to_2pi(self.state_desired[5,0])
         xi_dot_bar = self.state_desired[6:9]
         chi_bar = np.vstack([xi_bar, xi_dot_bar])
 
@@ -641,73 +699,78 @@ class Quad(QuadParams, frames.AircraftState):
                            np.zeros((3, 6))])
 
         B_pos = np.vstack([np.zeros((3, 3)), np.identity(3)])
-        Q_pos = np.diag([10, 10, 10, .01, .01, .01])
-        R_pos = np.identity(3)
+        Q_pos = np.diag([1, 1, 1, 1, 1, 1])
+        R_pos = np.diag(np.array([20, 20, 20]))
         K_pos,_,_ = lqr(A_pos, B_pos, Q_pos, R_pos)
 
         acc_vec = -np.dot(K_pos, chi_delta) + np.array([[0, 0, g]]).T
-        F_dir = acc_vec / np.linalg.norm(acc_vec)
 
-        N_dir = np.zeros((3, 1))
+        Z = -acc_vec / np.linalg.norm(acc_vec)
+        a = Z[0, 0]*sin(psi_bar) + Z[1, 0]*cos(psi_bar)
+        b = -Z[2, 0]
+        c = -a
 
-        F_02 = F_dir[0,0]**2 + F_dir[2,0]**2
-        F_12 = F_dir[1,0]**2 + F_dir[2,0]**2
-        if np.sign(cos(psi)) > 0:
-            N_dir[1, 0] = sqrt(F_dir[2,0]**2 / (F_02*tan(psi)**2 + 2*F_dir[0,0]*F_dir[1,0]*tan(psi) + F_12))
-            N_dir[0, 0] = N_dir[1, 0] * tan(psi)
-        elif np.sign(cos(psi)) < 0:
-            N_dir[1, 0] = -sqrt(F_dir[2,0]**2 / (F_02*tan(psi)**2 + 2*F_dir[0,0]*F_dir[1,0]*tan(psi) + F_12))
-            N_dir[0, 0] = N_dir[1, 0] * tan(psi)
+        if np.allclose(a, 0):
+            X3 = 0
+        elif abs((-b+sqrt(b**2 - 4*a*c))/(2*a)) <= 1:
+            X3 = (-b+sqrt(b**2 - 4*a*c))/(2*a)
         else:
-            N_dir[1, 0] = 0
-            a = 1
-            b = -1
-            c = -F_dir[2,0] / F_dir[1, 0]
-            if np.sign(sin(psi)) > 0:
-                N_dir[0, 0] = (-b+sqrt(b**2 - 4*a*c))/(2*a)
-            else:
-                N_dir[0, 0] = (-b-sqrt(b**2 - 4*a*c))/(2*a)
+            X3 = (-b-sqrt(b**2 - 4*a*c))/(2*a)
 
-        N_dir[2, 0] = sqrt(1 - N_dir[0, 0]**2 - N_dir[1, 0]**2)
+        d = sqrt(1 - X3**2)
 
-        W_dir = np.atleast_2d(np.cross(np.squeeze(N_dir), np.squeeze(F_dir))).T
-        W_dir = W_dir / np.linalg.norm(W_dir)
+        if psi_bar >= 0 and psi_bar < PI:
+            X1 = sqrt(d**2 * (sin(psi_bar))**2)
+        else:
+            X1 = -sqrt(d**2 * (sin(psi_bar))**2)
+        if (psi_bar >= 0 and psi_bar < PI/2) or psi_bar >= 3*PI/2:
+            X2 = sqrt(d**2 * (cos(psi_bar))**2)
+        else:
+            X2 = -sqrt(d**2 * (cos(psi_bar))**2)
 
-        R = np.hstack([N_dir, W_dir, -F_dir])
-        (phi, theta, _) = mmath.rot2euler(np.dot(self.nominal_frame.rot_mat, R))
-        eta_desired = np.array([[phi, theta, psi]]).T
+        X = np.array([[X1, X2, X3]]).T
+        X = X / np.linalg.norm(X)
+        Y = np.atleast_2d(np.cross(np.squeeze(Z), np.squeeze(X))).T
+        Y = Y / np.linalg.norm(Y)
 
-        Q_rot = np.diag([100, 100, 2, 1, 1, 1])
-        R_rot = np.diag(np.array([100, 100, 1000]))
+        R = np.hstack([X, Y, Z])
+
+        (phi_bar, theta_bar, _) = mmath.rot2euler(np.dot(self.nominal_frame.rot_mat, R))
+        eta_bar = np.array([[phi_bar, theta_bar, psi_bar]]).T
+        eta_delta = eta - eta_bar
+        eta_delta = np.array([[mmath.wrap_to_pi(ang) for ang in eta_delta]]).T
+
+
+        Q_rot = np.diag([1, 1, 1, 1, 1, 1])
+        R_rot = np.diag(np.array([20, 20, 20]))
         K_rot,_,_ = lqr(self.A_rot, self.B_rot, Q_rot, R_rot)
-        X_rot = np.vstack([self.state[3:6]-eta_desired, self.state[9:12]])
-
+        X_rot = np.vstack([eta_delta, self.state[9:12]])
         torque_attitude = -np.dot(K_rot, X_rot)
 
-        # force = np.linalg.norm(acc_vec)*m
-        force = m * acc_vec[2, 0] / self.rot_mat[2, 2]
+        force = np.linalg.norm(acc_vec)*m
 
         u = np.vstack([force, torque_attitude])
 
         return u
 
     def clf_attitude_control(self):
+        eta_bar = self.state_desired[3:6]
         (phi, theta, psi) = self.attitude
         eta = np.atleast_2d(np.array((phi, theta, psi))).T
+
+        eta_delta = eta - eta_bar
         (phi_dot, theta_dot, psi_dot) = self.attitude_vel
         eta_dot = np.atleast_2d(np.array((phi_dot, theta_dot, psi_dot))).T
         J = generialized_coordinate_inertia(self.I, phi, theta, psi)
         C = quad_coriolis(self.I, phi, theta, phi_dot, theta_dot, psi_dot)
 
-        eps = 2
-        u_hat = -(eps*eta + 2*eta_dot)
-        u = np.dot(J, u_hat) + np.dot(C, eta_dot)
-        torque_attitude = u
-
-        # torque_attitude = -np.dot(J, eta) + np.dot(C - 2*J, eta_dot)
+        eps = 5
+        u_hat = -(eps*eta_delta + 2*eta_dot)
+        torque_attitude = np.dot(J, u_hat) + np.dot(C, eta_dot)
 
         # force = np.array([[0, 0, self.G*self.M / self.rot_mat[2, 2]]]).T
         force = self.G*self.M
+        # force = 0
 
         return np.vstack([force, torque_attitude])
 

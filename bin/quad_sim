@@ -37,6 +37,7 @@ class QuadSim():
     _run_flag = True
     _simulate_flag = False
     _echo_flag = False
+    _set_pose = []
 
     # Constructor
     def __init__(self, sample_time=SAMPLE_TIME, local_ref=frames.LOCAL,
@@ -49,6 +50,20 @@ class QuadSim():
                               attitude_vel=INIT_ATTITUDE_VEL,
                               pwm=None,
                               reference=local_ref)
+
+        self.take_off_set_point = np.array([[self.quad.x,
+                                             self.quad.y,
+                                             self.quad.z + 1.5,
+                                             self.quad.yaw]]).T
+
+        self.land_set_point = np.array([[self.quad.x,
+                                         self.quad.y,
+                                         0,
+                                         self.quad.yaw]]).T
+        self._set_pose = np.array([self.quad.x,
+                                   self.quad.y,
+                                   self.quad.z,
+                                   self.quad.yaw])
 
 
         rospy.init_node('quad_sim', anonymous=True)
@@ -121,7 +136,7 @@ class QuadSim():
         self.msg_tfs.transforms[0].header.frame_id = "LOCAL"
         self.msg_tfs.transforms[0].child_frame_id = "QUAD"
 
-        self.msg_tfs.transforms[0].transform.translation.x = .5
+        self.msg_tfs.transforms[0].transform.translation.x = 0
         self.msg_tfs.transforms[0].transform.translation.y = 0
         self.msg_tfs.transforms[0].transform.translation.z = 0
 
@@ -180,32 +195,66 @@ class QuadSim():
 
     # Services
     def setup_services(self):
-        self.serv_quad_cmd = rospy.Service('quad_cmd',
+        self.serv_quad_cmd = rospy.Service('serv_quad_sim',
                                            quad_cmd,
                                            self.handle_quad_cmd)
 
     def handle_quad_cmd(self, req):
         reply = ""
 
-        if req.command == 's':
-            if self._simulate_flag:
-                reply = "Stopping simulation"
-                self._simulate_flag = False
-            else:
-                reply = "Starting simulation"
+        if req.command == 'arm':
+            if not self._simulate_flag:
+                reply = "Started simulation"
                 self._simulate_flag = True
 
-        elif req.command == 'r':
-            self.reset()
+        elif req.command == 'disarm':
+            if self._simulate_flag:
+                reply = "Stopped simulation"
+                self._simulate_flag = False
 
-            reply = ""
-            reply += "Resetting quad to:\n"
-            reply += "PWM: " + self.quad.val2str(self.quad.pwm) + "\n"
-            reply += "Position: " + self.quad.val2str(self.quad.xyz) + "\n"
-            reply += "Velocity: " + self.quad.val2str(self.quad.linear_vel.xyz) + "\n"
+        elif req.command == 'set_pose':
+            self._set_pose = req.params
+            self.quad.x = req.params[0]
+            self.quad.y = req.params[1]
+            self.quad.z = req.params[2]
+            self.quad.yaw = req.params[3]
+            self.quad.state_desired[[0, 1, 2, 5]] = np.array([req.params]).T
 
-            reply += "State:\n" + self.quad.val2str(self.quad.state) + "\n"
-            reply += "State Dot:\n" + self.quad.val2str(self.quad.state_dot) + "\n"
+
+            self.quad.finite_state[0] = 'MOVING'
+            reply = "Set pose to " + str(req.params)
+
+        elif req.command == 'reset_pose':
+            req.params = self._set_pose
+            self.quad.x = req.params[0]
+            self.quad.y = req.params[1]
+            self.quad.z = req.params[2]
+            self.quad.yaw = req.params[3]
+            self.quad.state_desired[[0, 1, 2, 5]] = np.array([req.params]).T
+
+
+            self.quad.finite_state[0] = 'MOVING'
+            reply = "Reset pose to " + str(req.params)
+
+
+        elif req.command == 'takeoff':
+            self.quad.state_desired[[0, 1, 2, 5]] = self.take_off_set_point
+            while not self.quad.finite_state[0] == 'HOLDING':
+                self._rospy_rate.sleep()
+                pass
+            reply = "Took off to " + str(self.take_off_set_point.T)
+
+        elif req.command == 'go_to':
+            self.quad.state_desired[[0, 1, 2, 5]] = np.array([req.params]).T
+            reply = "Moving to " + str(req.params)
+
+        elif req.command == 'land':
+            self.quad.state_desired[[0, 1, 2, 5]] = self.land_set_point
+            while not self.quad.finite_state[0] == 'LANDED':
+                self._rospy_rate.sleep()
+                pass
+            reply = "Landed at " + str(self.land_set_point.T)
+
 
         elif req.command == 'e':
             if self._echo_flag:
@@ -215,14 +264,13 @@ class QuadSim():
                 reply = "Turning on echo"
                 self._echo_flag = True
 
-        elif req.command == 'q':
+        elif req.command == 'quit':
             reply = "Quitting"
             self._run_flag = False
 
         else:
             reply = "Invalid command: " + req.command
 
-        print reply
         return reply
 
 if __name__ == '__main__':

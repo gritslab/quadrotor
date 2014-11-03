@@ -11,72 +11,143 @@
 
 import rospy
 from quadrotor.srv import *
+import time
 
 def run():
-    srv_quad_cmd = rospy.ServiceProxy('quad_cmd', quad_cmd)
+    time.sleep(1)
 
-    cmd_order = ['m', 's', 'r', 'e', 'q']
-    cmd_list = {'m': 'Menu',
-                's': 'Start/Stop',
-                'r': 'Reset',
-                'e': 'Echo On/Off',
-                'q': 'Quit'}
+    service = 'serv_quad_sim'
+    srv_quad_cmd = rospy.ServiceProxy(service, quad_cmd)
+
+    menu_state = 'Main'
+    quit_flag = False
+
+    cmd_list = {}
+
+
+    cmd_list['Main'] = [['m', 'a', 's', 'r', 'q'],
+                        ['Menu',
+                         'Arm',
+                         'Set Pose',
+                         'Reset Pose',
+                         'Quit']]
+
+    cmd_list['Armed'] = [['m', 'd', 't', 'g', 'l', 'r' ,'e'],
+                         ['Menu',
+                          'Disarm',
+                          'Takeoff',
+                          'Go To',
+                          'Land',
+                          'Run',
+                          'Echo On/Off']]
 
     print "*----------------------*"
     print "| Quad Command Program |"
     print "*----------------------*"
 
-    print "Waiting for simulator..."
-    rospy.wait_for_service('quad_cmd')
+    print "Waiting for quad..."
+    # rospy.wait_for_service(service)
     print "Done"
     print ""
 
-    print_menu(cmd_list, cmd_order)
-
     while not rospy.is_shutdown():
-        (cmd, quit_flag) = get_input(cmd_list, cmd_order)
-        rospy.wait_for_service('quad_cmd')
-        msg = srv_quad_cmd(cmd)
-        print_reply(msg)
+        key = get_key(cmd_list[menu_state], menu_state)
+        command = ''
+        params = []
+
+        if menu_state == 'Main':
+            if key == 'a':
+                menu_state = 'Armed'
+                command = 'arm'
+
+            elif key == 's':
+                command = 'set_pose'
+                params = get_params([['Position', ['x', 'y', 'z']],
+                                     ['Yaw', ['psi']]])
+
+            elif key == 'r':
+                command = 'reset_pose'
+
+            elif key == 'q':
+                command = 'quit'
+                quit_flag = True
+
+        elif menu_state == 'Armed':
+            if key == 'd':
+                menu_state = 'Main'
+                command = 'disarm'
+
+            if key == 't':
+                command = 'takeoff'
+
+            if key == 'g':
+                command = 'go_to'
+                params = get_params([['Position', ['x', 'y', 'z']],
+                                     ['Yaw', ['psi']]])
+
+            if key == 'l':
+                command = 'land'
+
+        rospy.wait_for_service(service)
+        print_cmd(command, params)
+        reply = srv_quad_cmd(command, params)
+        print_reply(reply)
         if quit_flag:
             break
 
-def get_input(cmd_list, cmd_order):
+def get_key(cmd_list, menu_state):
     input_str = "Enter command: "
-    cmd = raw_input(input_str)
-    print ""
-    while cmd.lower() == 'm' or cmd.lower() not in cmd_list.keys():
-        if cmd.lower() == 'm':
-            print_cmd(cmd, cmd_list)
-        if cmd.lower() not in cmd_list.keys():
-            print "Invalid command: " + cmd
-            print ""
-        print_menu(cmd_list, cmd_order)
-        cmd = raw_input(input_str)
-        print ""
-    print_cmd(cmd, cmd_list)
-    if cmd == 'q':
-        quit_flag = True
-    else:
-        quit_flag = False
-    return (cmd, quit_flag)
+    key = 'm'
 
-def print_menu(cmd_list, cmd_order):
-    print " *** Command Menu  ***"
+    while key.lower() == 'm' or key.lower() not in cmd_list[0]:
+        print_menu(cmd_list, menu_state)
+        key = raw_input(input_str)
+        print ""
+
+        if key.lower() not in cmd_list[0]:
+            print "Invalid command: " + key
+            print ""
+    index = cmd_list[0].index(key)
+
+    return key
+
+def get_params(param_list):
+    params = []
+    set_index = 0
+    for param_set in  param_list:
+        print param_set[0] + ":"
+        for param in param_set[1]:
+            value = raw_input("  " + param + ": ")
+            params.append(float(value))
+        print ""
+
+    return params
+
+
+def print_menu(cmd_list, menu_state):
+    print " *** Menu  (" + menu_state + ") ***"
     print ""
-    for key in cmd_order:
-        str_len = len(cmd_list[key])
+    index = 0
+    for item in cmd_list[1]:
+        key = cmd_list[0][index]
+        str_len = len(item)
         if str_len < 8:
             tab_str = "\t\t"
         else:
             tab_str = "\t"
-        print cmd_list[key] + tab_str + "\'" + key + "\'"
+        print item + tab_str + "\'" + key + "\'"
+        index += 1
     print ""
 
-def print_cmd(cmd, cmd_list):
+def print_cmd(command, params):
     print " *** Command ***"
-    print cmd_list[cmd]
+    print command
     print ""
+
+    if len(params) > 0:
+        print " *** Params ***"
+        print params
+        print ""
 
 def print_reply(msg):
     print " *** Reply ***"
