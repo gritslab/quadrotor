@@ -190,10 +190,6 @@ class Quad(QuadParams, frames.AircraftState):
         # self.controller = self.lqr_attitude_control
 
         # LQR position and attitude controller
-        # self.state_desired[0, 0] = 1
-        # self.state_desired[1, 0] = 0
-        # self.state_desired[2, 0] = 1
-        # self.state_desired[5, 0] = PI
         self.controller = self.lqr_position_attitude_control
 
         # # CLF attitude controller
@@ -488,6 +484,22 @@ class Quad(QuadParams, frames.AircraftState):
 
 
     # Methods
+    def finite_state_update(self):
+        if self.finite_state[0] == 'LANDED':
+            if not self.at_state_desired:
+                self.finite_state[0] = 'MOVING'
+
+        elif self.finite_state[0] == 'MOVING':
+            if self.at_state_desired:
+                if self.state_desired[2, 0] <= 0:
+                    self.finite_state[0] = 'LANDED'
+                else:
+                    self.finite_state[0] = 'HOLDING'
+
+        elif self.finite_state[0] == 'HOLDING':
+            if not self.at_state_desired:
+                self.finite_state[0] = 'MOVING'
+
     def update(self, ts):
         u_plus = self.controller()
         self.input = u_plus
@@ -612,25 +624,6 @@ class Quad(QuadParams, frames.AircraftState):
         return (x_dot, A, B, A_trans, B_trans, A_rot, B_rot)
 
     # Methods -- Controllers
-
-    def finite_state_update(self):
-        if self.finite_state[0] == 'LANDED':
-            if not self.at_state_desired:
-                self.finite_state[0] = 'MOVING'
-
-        elif self.finite_state[0] == 'MOVING':
-            if self.at_state_desired:
-                if self.state_desired[2, 0] <= 0:
-                    self.finite_state[0] = 'LANDED'
-                else:
-                    self.finite_state[0] = 'HOLDING'
-
-        elif self.finite_state[0] == 'HOLDING':
-            if not self.at_state_desired:
-                self.finite_state[0] = 'MOVING'
-
-
-
     def zero_control(self):
         return np.zeros((self.input_dim, 1))
 
@@ -699,8 +692,8 @@ class Quad(QuadParams, frames.AircraftState):
                            np.zeros((3, 6))])
 
         B_pos = np.vstack([np.zeros((3, 3)), np.identity(3)])
-        Q_pos = np.diag([1, 1, 1, 1, 1, 1])
-        R_pos = np.diag(np.array([20, 20, 20]))
+        Q_pos = np.diag([2, 2, 2, 20, 20, 20])
+        R_pos = np.diag(np.array([5, 5, 5]))
         K_pos,_,_ = lqr(A_pos, B_pos, Q_pos, R_pos)
 
         acc_vec = -np.dot(K_pos, chi_delta) + np.array([[0, 0, g]]).T
@@ -742,7 +735,7 @@ class Quad(QuadParams, frames.AircraftState):
 
 
         Q_rot = np.diag([1, 1, 1, 1, 1, 1])
-        R_rot = np.diag(np.array([20, 20, 20]))
+        R_rot = np.diag(np.array([5, 5, 5]))
         K_rot,_,_ = lqr(self.A_rot, self.B_rot, Q_rot, R_rot)
         X_rot = np.vstack([eta_delta, self.state[9:12]])
         torque_attitude = -np.dot(K_rot, X_rot)

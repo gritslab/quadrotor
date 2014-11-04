@@ -46,7 +46,7 @@ def run():
     print "*----------------------*"
 
     print "Waiting for quad..."
-    # rospy.wait_for_service(service)
+    rospy.wait_for_service(service)
     print "Done"
     print ""
 

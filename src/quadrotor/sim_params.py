@@ -16,7 +16,7 @@ from quadrotor.quad import QuadParams
 # Simulator Constants
 # ==============================================================================
 
-SAMPLE_TIME = .05
+SAMPLE_TIME = .01
 
 PUFFIN_PARAMS = QuadParams(name='PUFFIN',
                              M=1,

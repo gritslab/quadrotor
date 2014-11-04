@@ -106,6 +106,15 @@ class QuadSim():
         ts = SAMPLE_TIME
         self.quad.update(ts)
 
+        # if self.quad.t < 5:
+        #     self.quad.state_desired[0, 0] = 0
+        #     self.quad.state_desired[1, 0] = 0
+        #     self.quad.state_desired[2, 0] = 1
+        #     self.quad.state_desired[5, 0] = PI/4
+        # else:
+        #     self.quad.state_desired[0, 0] = 2
+        #     self.quad.state_desired[1, 0] = 2
+
     def reset(self):
         self.pwm = self.quad.init_pwm[0]
         self.quad.pwm = self.quad.init_pwm
