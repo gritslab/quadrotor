@@ -8,7 +8,6 @@ find_package(catkin REQUIRED COMPONENTS
              rospy
              message_generation
              std_msgs
-             robotics
              utility
              )
 
@@ -81,7 +80,7 @@ generate_messages(
 catkin_package(
                INCLUDE_DIRS include
                LIBRARIES quadrotor
-               CATKIN_DEPENDS rospy message_runtime robotics utility
+               CATKIN_DEPENDS rospy message_runtime utility
  # DEPENDS system_lib
  )
 
@@ -94,7 +93,6 @@ catkin_package(
 include_directories(
                     include
                     ${catkin_INCLUDE_DIRS}
-                    ${robotics_INCLUDE_DIR}
                     ${utility_INCLUDE_DIR}
                     )
 
@@ -114,7 +112,6 @@ include_directories(
 # target_link_libraries(quadrotor
 #                       ${catkin_LIBRARIES}
 #                       ${CMAKE_THREAD_LIBS_INIT}
-#                       ${robotics_LIBRARIES}
 # )
 
 #############

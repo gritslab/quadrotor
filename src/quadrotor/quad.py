@@ -20,9 +20,9 @@ from numpy import sqrt
 from control import lqr
 
 import utility.mmath as mmath
-import robotics.mechanics as mechanics
-import robotics.frames as frames
-import robotics.rigid as rigid
+import utility.mechanics as mechanics
+import utility.frames as frames
+import utility.rigid as rigid
 import quadrotor.quad_model as quad_model
 
 class QuadParams(object):

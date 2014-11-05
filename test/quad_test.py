@@ -23,9 +23,9 @@ from numpy import sqrt
 
 from control import lqr
 
-import robotics.mechanics as mechanics
-import robotics.rigid as rigid
-import robotics.frames as frames
+import utility.mechanics as mechanics
+import utility.rigid as rigid
+import utility.frames as frames
 import utility.mmath as mmath
 import quadrotor.quad as quad
 import quadrotor.quad_model as quad_model
