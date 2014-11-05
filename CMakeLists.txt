@@ -78,7 +78,7 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-               INCLUDE_DIRS include
+               # INCLUDE_DIRS include
                LIBRARIES quadrotor
                CATKIN_DEPENDS rospy message_runtime utility
  # DEPENDS system_lib
@@ -91,7 +91,7 @@ catkin_package(
 # Specify additional locations of header files
 # Your package locations should be listed before other locations
 include_directories(
-                    include
+                    # include
                     ${catkin_INCLUDE_DIRS}
                     ${utility_INCLUDE_DIR}
                     )
@@ -123,12 +123,12 @@ include_directories(
 
 # Mark executable scripts (Python etc.) for installation
 # in contrast to setup.py, you can choose the destination
-install(PROGRAMS
-  bin/quad_cmd
-  bin/quad_sim
-  bin/quad_rviz
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+# install(PROGRAMS
+#   bin/quad_cmd
+#   bin/quad_sim
+#   bin/quad_rviz
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
 # Mark executables and/or libraries for installation
 # install(TARGETS quadrotor
