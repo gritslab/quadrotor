@@ -123,12 +123,13 @@ include_directories(
 
 # Mark executable scripts (Python etc.) for installation
 # in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   bin/quad_cmd
-#   bin/quad_sim
-#   bin/quad_rviz
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(PROGRAMS
+  scripts/quad_cmd
+  scripts/quad_sim
+  scripts/quad_rviz
+  scripts/quad_master
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 # Mark executables and/or libraries for installation
 # install(TARGETS quadrotor

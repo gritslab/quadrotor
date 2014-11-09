@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+
+"""
+@brief Script to run quadrotor in the lab
+
+@author Rowland O'Flaherty
+@date 11/08/2014
+"""
+
+import rospy
+from geometry_msgs.msg import Pose
+
+SAMPLE_TIME = .01
+
+class QuadMaster(object):
+    """
+    Quad master class
+    """
+
+    # Constructor
+    def __init__(self):
+        rospy.init_node('quad_master', anonymous=True)
+
+        self._rospy_rate = rospy.Rate(1/SAMPLE_TIME)
+
+        self.setup_subscribers()
+        self.setup_publishers()
+        self.setup_messages()
+
+    # Property getters and setters
+
+    # Methods
+    def run(self):
+        while not rospy.is_shutdown():
+            self.publish()
+            self._rospy_rate.sleep()
+
+    # Subscribers
+    def setup_subscribers(self):
+        rospy.Subscriber("quad/pose", Pose, self.handle_optitrack_quad)
+
+    def handle_optitrack_quad(self, pose):
+        # print pose.position.x
+
+    # Publishers
+    def publish(self):
+        pass
+
+    def setup_publishers(self):
+        pass
+
+    # Messages
+    def setup_messages(self):
+        pass
+
+
+if __name__ == '__main__':
+    try:
+        # Initialize and run simulator object
+        quad_master = QuadMaster()
+        quad_master.run()
+
+    except rospy.ROSInterruptException: pass

@@ -26,4 +26,6 @@ GRITS Lab ROS quadrotor package
 ## Running
 To run the quadrotor simulator do:
 
+    ```bash
     roslaunch quadrotor quad_sim.launch
+    ```
