@@ -5,12 +5,14 @@ project(quadrotor)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+             roscpp
              rospy
              message_generation
              std_msgs
              utility
              )
 
+find_package(Eigen3 REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -78,9 +80,9 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-               # INCLUDE_DIRS include
+               INCLUDE_DIRS include
                LIBRARIES quadrotor
-               CATKIN_DEPENDS rospy message_runtime utility
+               CATKIN_DEPENDS roscpp rospy message_runtime utility
  # DEPENDS system_lib
  )
 
@@ -91,18 +93,26 @@ catkin_package(
 # Specify additional locations of header files
 # Your package locations should be listed before other locations
 include_directories(
-                    # include
+                    include
                     ${catkin_INCLUDE_DIRS}
                     ${utility_INCLUDE_DIR}
+                    ${EIGEN3_INCLUDE_DIR}
                     )
 
-## Declare a cpp library
-# add_library(quadrotor
-#   src/${PROJECT_NAME}/quadrotor.cpp
-# )
+# Declare a cpp library
+add_library(quadrotor
+  src/quad.cpp
+  src/quad_manager.cpp
+)
+target_link_libraries(quadrotor
+    ${utility_LIBRARIES}
+    ${catkin_LIBRARIES}
+)
+add_dependencies(quadrotor ${catkin_EXPORTED_TARGETS})
 
-## Declare a cpp executable
-# add_executable(quadrotor_node src/quadrotor_node.cpp)
+# Declare a cpp executable
+add_executable(quad_test test/quad_test.cpp)
+target_link_libraries(quad_test quadrotor)
 
 # Add cmake target dependencies of the executable/library
 # as an example, message headers may need to be generated before nodes
@@ -132,18 +142,18 @@ install(PROGRAMS
 )
 
 # Mark executables and/or libraries for installation
-# install(TARGETS quadrotor
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(TARGETS quadrotor
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
 # install(DIRECTORY include/${PROJECT_NAME}/
 #   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 #   FILES_MATCHING PATTERN "*.h"
 #   PATTERN ".svn" EXCLUDE
-# )
+  # )
 
 # Mark other files for installation (e.g. launch and bag files, etc.)
 install(FILES
