@@ -54,7 +54,9 @@ enum Commands
     TOGGLE_ARM=0,
     TAKEOFF,
     FLY_TO,
-    LAND
+    LAND,
+    CALIBRATE,
+
 };
 
 
