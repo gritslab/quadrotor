@@ -56,6 +56,7 @@ enum Commands
     FLY_TO,
     LAND,
     CALIBRATE,
+    RETURN,
 
 };
 
