@@ -37,7 +37,7 @@ public:
     //--------------------------------------------------------------------------
     // Public Member Getters and Setters
     //--------------------------------------------------------------------------
-    int n_quads const { return m_n_quads; }
+    int n_quads() const { return m_n_quads; }
 
 
 
