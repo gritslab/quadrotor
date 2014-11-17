@@ -190,7 +190,7 @@ class Quad(QuadParams, frames.AircraftState):
         # self.controller = self.lqr_attitude_control
 
         # LQR position and attitude controller
-        self.controller = self.lqr_position_attitude_control
+        #self.controller = self.lqr_position_attitude_control
 
         # # CLF attitude controller
         # self.controller = self.clf_attitude_control
@@ -199,7 +199,7 @@ class Quad(QuadParams, frames.AircraftState):
         # self.state_desired[5, 0] = 0
 
         # # Diffeomorphism full state controller
-        # self.controller = self.diffeomorphism_full_state_control
+        self.controller = self.diffeomorphism_full_state_control
 
         # # Altitude controller
         # self.controller = self.pid_control
