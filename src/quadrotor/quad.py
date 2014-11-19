@@ -712,14 +712,8 @@ class Quad(QuadParams, frames.AircraftState):
 
         d = sqrt(1 - X3**2)
 
-        if psi_bar >= 0 and psi_bar < PI:
-            X1 = sqrt(d**2 * (sin(psi_bar))**2)
-        else:
-            X1 = -sqrt(d**2 * (sin(psi_bar))**2)
-        if (psi_bar >= 0 and psi_bar < PI/2) or psi_bar >= 3*PI/2:
-            X2 = sqrt(d**2 * (cos(psi_bar))**2)
-        else:
-            X2 = -sqrt(d**2 * (cos(psi_bar))**2)
+        X1 = d*sin(psi_bar)
+        X2 = d*cos(psi_bar)
 
         X = np.array([[X1, X2, X3]]).T
         X = X / np.linalg.norm(X)

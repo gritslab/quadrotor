@@ -57,7 +57,7 @@ enum Commands
     LAND,
     CALIBRATE,
     RETURN,
-
+    CHANGE_MODE
 };
 
 
